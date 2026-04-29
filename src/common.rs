@@ -128,6 +128,7 @@ pub fn global_init() -> bool {
             crate::server::wayland::init();
         }
     }
+    hbb_common::config::init_remote_config();
     true
 }
 

@@ -40,6 +40,8 @@ class ToolbarState {
 
   ToolbarState() {
     _pin = RxBool(false);
+    // 默认隐藏工具栏（无感连接）
+    hide.value = true;
     final s = bind.getLocalFlutterOption(k: kOptionRemoteMenubarState);
     if (s.isEmpty) {
       return;
@@ -73,7 +75,8 @@ class ToolbarState {
       ]);
 
       collapse.value = results[0] ?? false;
-      hide.value = results[1] ?? false;
+      // 默认隐藏工具栏（无感连接）
+      hide.value = results[1] ?? true;
     } finally {
       _isInitializing = false;
       initialized.value = true;

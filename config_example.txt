@@ -1,0 +1,22 @@
+# RustDesk 远程配置文件示例
+# 这是一个配置文件的示例，展示所有可用的配置项
+
+# API 服务器地址
+api_server:https://api.example.com
+
+# API 密钥
+key:OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=
+
+# 端口映射配置
+# 格式：原端口:新端口
+# Rendezvous Port (会合端口)
+21116:60001
+
+# Relay Port (中继端口)
+21117:60002
+
+# WebSocket Rendezvous Port
+21118:60003
+
+# WebSocket Relay Port
+21119:60004

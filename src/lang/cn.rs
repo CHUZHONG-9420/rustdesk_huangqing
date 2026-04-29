@@ -743,5 +743,16 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Display Name", "显示名称"),
         ("password-hidden-tip", "永久密码已设置（已隐藏）"),
         ("preset-password-in-use-tip", "当前使用预设密码"),
+        ("Fetch Remote Config", "拉取远程配置"),
+        ("Enter the URL of remote config file:", "输入远程配置文件的 URL："),
+        ("Config URL", "配置文件 URL"),
+        ("URL cannot be empty", "URL 不能为空"),
+        ("Config fetched successfully!", "配置拉取成功！"),
+        ("Failed to load config", "加载配置失败"),
+        ("Error: ", "错误："),
+        ("Remote configuration has been updated", "远程配置已更新"),
+        ("Fetch", "拉取"),
+        ("Use Default", "使用默认"),
+        ("Custom URL will be saved for next use", "自定义 URL 将被保存供下次使用"),
     ].iter().cloned().collect();
 }

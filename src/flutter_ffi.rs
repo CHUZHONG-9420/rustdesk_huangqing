@@ -3089,3 +3089,64 @@ pub mod server_side {
         jboolean::from(crate::server::is_clipboard_service_ok())
     }
 }
+
+// 远程配置相关FFI接口
+pub fn fetch_remote_config_async(url: String) -> SyncReturn<String> {
+    use hbb_common::tokio;
+    
+    tokio::spawn(async move {
+        match hbb_common::config::fetch_remote_config(&url).await {
+            Ok(config) => {
+                let status = serde_json::json!({
+                    "success": true,
+                    "api_server": config.api_server,
+                    "key": config.key,
+                    "ports": {
+                        "rendezvous": config.rendezvous_port,
+                        "relay": config.relay_port,
+                        "ws_rendezvous": config.ws_rendezvous_port,
+                        "ws_relay": config.ws_relay_port,
+                    }
+                });
+                log::info!("Remote config fetched: {:?}", status);
+                flutter::emit_event(&flutter::make_event("remote_config_fetched", &[("status", &status.to_string())]));
+            }
+            Err(e) => {
+                let error = serde_json::json!({
+                    "success": false,
+                    "error": e.to_string()
+                });
+                log::error!("Failed to fetch remote config: {}", e);
+                flutter::emit_event(&flutter::make_event("remote_config_fetched", &[("status", &error.to_string())]));
+            }
+        }
+    });
+    
+    SyncReturn("".to_string())
+}
+
+pub fn get_remote_config_info() -> SyncReturn<String> {
+    let info = serde_json::json!({
+        "loaded": hbb_common::config::RemoteConfig::is_loaded(),
+        "api_server": hbb_common::config::RemoteConfig::get_api_server(),
+        "key": hbb_common::config::RemoteConfig::get_key(),
+        "config_url": hbb_common::config::RemoteConfig::get_config_url(),
+        "ports": {
+            "rendezvous": hbb_common::config::RemoteConfig::get_rendezvous_port(),
+            "relay": hbb_common::config::RemoteConfig::get_relay_port(),
+            "ws_rendezvous": hbb_common::config::RemoteConfig::get_ws_rendezvous_port(),
+            "ws_relay": hbb_common::config::RemoteConfig::get_ws_relay_port(),
+        }
+    });
+    
+    SyncReturn(info.to_string())
+}
+
+pub fn get_remote_config_url() -> SyncReturn<String> {
+    SyncReturn(hbb_common::config::RemoteConfig::get_config_url())
+}
+
+pub fn set_remote_config_url(url: String) -> SyncReturn<String> {
+    hbb_common::config::RemoteConfig::set_config_url(url);
+    SyncReturn("".to_string())
+}

@@ -1207,25 +1207,13 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
               initialKey: modeInitialKey,
               onChanged: (key) => model.setApproveMode(key),
             ).marginOnly(left: _kContentHMargin),
-            if (usePassword) radios[0],
-            if (usePassword)
-              _SubLabeledWidget(
-                  context,
-                  'One-time password length',
-                  Row(
-                    children: [
-                      ...lengthRadios,
-                    ],
-                  ),
-                  enabled: tmpEnabled && !locked),
-            if (usePassword) numericOneTimePassword,
+            // 移除一次性密码相关选项，只保留永久密码
             if (usePassword) radios[1],
             if (usePassword && !isChangePermanentPasswordDisabled())
               _SubButton('Set permanent password', setPasswordDialog,
                   permEnabled && !locked),
             // if (usePassword)
             //   hide_cm(!locked).marginOnly(left: _kContentHSubMargin - 6),
-            if (usePassword) radios[2],
           ]);
         })));
   }
@@ -1647,9 +1635,6 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
           ),
         );
 
-    final outgoingOnly = bind.isOutgoingOnly();
-
-    final divider = const Divider(height: 1, indent: 16, endIndent: 16);
     return _Card(
       title: 'Network',
       children: [
@@ -1657,70 +1642,11 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (!hideServer)
-                listTile(
-                  icon: Icons.dns_outlined,
-                  title: 'ID/Relay Server',
-                  onTap: () => showServerSettings(gFFI.dialogManager, setState),
-                ),
-              if (!hideProxy && !hideServer) divider,
-              if (!hideProxy)
-                listTile(
-                  icon: Icons.network_ping_outlined,
-                  title: 'Socks5/Http(s) Proxy',
-                  onTap: changeSocks5Proxy,
-                ),
-              if (!hideWebSocket && (!hideServer || !hideProxy)) divider,
-              if (!hideWebSocket)
-                switchWidget(
-                    Icons.web_asset_outlined,
-                    'Use WebSocket',
-                    '${translate('websocket_tip')}\n\n${translate('server-oss-not-support-tip')}',
-                    kOptionAllowWebSocket),
-              if (!isWeb)
-                futureBuilder(
-                  future: bind.mainIsUsingPublicServer(),
-                  hasData: (isUsingPublicServer) {
-                    if (isUsingPublicServer) {
-                      return Offstage();
-                    } else {
-                      return Column(
-                        children: [
-                          if (!hideServer || !hideProxy || !hideWebSocket)
-                            divider,
-                          switchWidget(
-                              Icons.no_encryption_outlined,
-                              'Allow insecure TLS fallback',
-                              'allow-insecure-tls-fallback-tip',
-                              kOptionAllowInsecureTLSFallback),
-                          if (!outgoingOnly) divider,
-                          if (!outgoingOnly)
-                            listTile(
-                              icon: Icons.lan_outlined,
-                              title: 'Disable UDP',
-                              showTooltip: true,
-                              tooltipMessage:
-                                  '${translate('disable-udp-tip')}\n\n${translate('server-oss-not-support-tip')}',
-                              trailing: Switch(
-                                value: bind.mainGetOptionSync(
-                                        key: kOptionDisableUdp) ==
-                                    'Y',
-                                onChanged:
-                                    locked || isOptionFixed(kOptionDisableUdp)
-                                        ? null
-                                        : (value) async {
-                                            await bind.mainSetOption(
-                                                key: kOptionDisableUdp,
-                                                value: value ? 'Y' : 'N');
-                                            setState(() {});
-                                          },
-                              ),
-                            ),
-                        ],
-                      );
-                    }
-                  },
-                ),
+              listTile(
+                icon: Icons.cloud_download_outlined,
+                title: 'Fetch Remote Config',
+                onTap: () => showFetchRemoteConfigDialog(context, setState),
+              ),
             ],
           ),
         ),
@@ -2378,10 +2304,10 @@ class _AboutState extends State<_About> {
                 height: 8.0,
               ),
               SelectionArea(
-                  child: Text('${translate('Version')}: $version')
+                  child: Text('XXX构建')
                       .marginSymmetric(vertical: 4.0)),
               SelectionArea(
-                  child: Text('${translate('Build Date')}: $buildDate')
+                  child: Text('${translate('Build Date')}: 20260429')
                       .marginSymmetric(vertical: 4.0)),
               if (!isWeb)
                 SelectionArea(
@@ -2949,6 +2875,210 @@ class _CountDownButtonState extends State<_CountDownButton> {
 //#endregion
 
 //#region dialogs
+
+// 遮蔽敏感信息的辅助函数
+String maskSensitiveInfo(String info) {
+  if (info.isEmpty) return info;
+  if (info.length <= 8) {
+    // 如果字符串太短，只显示首尾各1个字符
+    if (info.length <= 2) return '***';
+    return '${info[0]}***${info[info.length - 1]}';
+  }
+  // 显示前4个和后4个字符，中间用*号代替
+  final start = info.substring(0, 4);
+  final end = info.substring(info.length - 4);
+  final stars = '*' * (info.length > 12 ? 8 : info.length - 8);
+  return '$start$stars$end';
+}
+
+void showFetchRemoteConfigDialog(BuildContext context, StateSetter? parentSetState) async {
+  // 获取保存的配置 URL
+  final savedUrl = await bind.getRemoteConfigUrl();
+  final urlController = TextEditingController(text: savedUrl);
+  String statusMsg = '';
+  bool isInProgress = false;
+  bool useCustomUrl = false;
+
+  gFFI.dialogManager.show((setState, close, context) {
+    void fetchConfig() async {
+      setState(() {
+        statusMsg = '';
+        isInProgress = true;
+      });
+
+      final url = urlController.text.trim();
+      if (url.isEmpty) {
+        setState(() {
+          statusMsg = translate('URL cannot be empty');
+          isInProgress = false;
+        });
+        return;
+      }
+
+      try {
+        // 保存自定义 URL（如果有修改）
+        await bind.setRemoteConfigUrl(url: url);
+        
+        // 调用 Rust FFI 函数
+        await bind.fetchRemoteConfigAsync(url: url);
+        
+        // 等待配置拉取完成（通过事件监听）
+        await Future.delayed(Duration(seconds: 2));
+        
+        // 获取配置信息
+        final configInfo = await bind.getRemoteConfigInfo();
+        final config = jsonDecode(configInfo);
+        
+        if (config['loaded'] == true) {
+          setState(() {
+            // 遮蔽敏感信息显示
+            final apiServer = config['api_server'] ?? '';
+            final key = config['key'] ?? '';
+            final ports = config['ports']?.toString() ?? '';
+            
+            statusMsg = translate('Config fetched successfully!\n') +
+                'API Server: ${maskSensitiveInfo(apiServer)}\n' +
+                'Key: ${maskSensitiveInfo(key)}\n' +
+                'Ports: ${maskSensitiveInfo(ports)}';
+            isInProgress = false;
+          });
+          
+          // 刷新父组件状态
+          if (parentSetState != null) {
+            parentSetState(() {});
+          }
+          
+          // 显示成功提示
+          showToast(translate('Remote configuration has been updated'));
+        } else {
+          setState(() {
+            statusMsg = translate('Failed to load config');
+            isInProgress = false;
+          });
+        }
+      } catch (e) {
+        setState(() {
+          statusMsg = translate('Error: ') + e.toString();
+          isInProgress = false;
+        });
+      }
+    }
+
+    void useDefaultUrl() {
+      setState(() {
+        urlController.text = 'https://rustdesk.6w8.top/huangqing-rustdesk/config.txt';
+        useCustomUrl = false;
+      });
+    }
+
+    return CustomAlertDialog(
+      title: Text(translate('Fetch Remote Config')),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 500),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    translate('Enter the URL of remote config file:'),
+                    style: TextStyle(fontSize: 14),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: isInProgress ? null : useDefaultUrl,
+                  icon: Icon(Icons.refresh, size: 16),
+                  label: Text(translate('Use Default')),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                ),
+              ],
+            ).marginOnly(bottom: 10),
+            TextField(
+              controller: urlController,
+              decoration: InputDecoration(
+                labelText: translate('Config URL'),
+                hintText: 'https://example.com/config.txt',
+                border: OutlineInputBorder(),
+                suffixIcon: urlController.text.isNotEmpty
+                    ? IconButton(
+                        icon: Icon(Icons.clear),
+                        onPressed: () {
+                          setState(() {
+                            urlController.clear();
+                          });
+                        },
+                      )
+                    : null,
+              ),
+              enabled: !isInProgress,
+              maxLines: 2,
+              minLines: 1,
+              onChanged: (value) {
+                setState(() {});
+              },
+            ),
+            Container(
+              margin: EdgeInsets.only(top: 8),
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(5),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: Colors.blue),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      translate('Custom URL will be saved for next use'),
+                      style: TextStyle(fontSize: 12, color: Colors.blue),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (statusMsg.isNotEmpty)
+              Container(
+                margin: EdgeInsets.only(top: 15),
+                padding: EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: statusMsg.contains('successfully')
+                      ? Colors.green.withOpacity(0.1)
+                      : Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Text(
+                  statusMsg,
+                  style: TextStyle(
+                    color: statusMsg.contains('successfully')
+                        ? Colors.green
+                        : Colors.red,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        dialogButton(
+          'Cancel',
+          onPressed: close,
+          isOutline: true,
+        ),
+        dialogButton(
+          'Fetch',
+          onPressed: isInProgress ? null : fetchConfig,
+          isOutline: false,
+        ),
+      ],
+    );
+  });
+}
 
 void changeSocks5Proxy() async {
   var socks = await bind.mainGetSocks();
