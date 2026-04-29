@@ -3095,7 +3095,7 @@ pub fn fetch_remote_config_async(url: String) -> SyncReturn<String> {
     use hbb_common::tokio;
     
     tokio::spawn(async move {
-        match hbb_common::config::fetch_remote_config(&url).await {
+        match do_fetch_remote_config(&url).await {
             Ok(config) => {
                 let status = serde_json::json!({
                     "success": true,
@@ -3123,6 +3123,17 @@ pub fn fetch_remote_config_async(url: String) -> SyncReturn<String> {
     });
     
     SyncReturn("".to_string())
+}
+
+async fn do_fetch_remote_config(url: &str) -> hbb_common::ResultType<hbb_common::config::RemoteConfig> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()?;
+    let text = client.get(url).send().await?.text().await?;
+    let config = hbb_common::config::RemoteConfig::parse_config_text(&text)?;
+    hbb_common::config::apply_remote_config(config.clone(), url);
+    log::info!("Remote config fetched successfully from {}", url);
+    Ok(config)
 }
 
 pub fn get_remote_config_info() -> SyncReturn<String> {
