@@ -134,6 +134,21 @@ class ServerModel with ChangeNotifier {
     _emptyIdShow = translate("Generating ...");
     _serverId = IDTextEditingController(text: _emptyIdShow);
 
+    // 强制使用永久密码模式，禁用点击访问和两者模式
+    Future.delayed(Duration.zero, () async {
+      final currentMethod = await bind.mainGetOption(key: kOptionVerificationMethod);
+      if (currentMethod != kUsePermanentPassword) {
+        await bind.mainSetOption(key: kOptionVerificationMethod, value: kUsePermanentPassword);
+      }
+      
+      final currentApproveMode = await bind.mainGetOption(key: kOptionApproveMode);
+      // 如果是 click 或 password-click（both），改为 password
+      // 允许 password 和 ''（无密码）两种模式
+      if (currentApproveMode == 'click' || currentApproveMode == 'password-click') {
+        await bind.mainSetOption(key: kOptionApproveMode, value: 'password');
+      }
+    });
+
     /*
     // initital _hideCm at startup
     final verificationMethod =

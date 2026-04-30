@@ -1183,21 +1183,21 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
                 : null,
           ).marginOnly(left: _kContentHSubMargin - 5);
 
-          final modeKeys = <String>[
-            'password',
-            'click',
-            defaultOptionApproveMode
-          ];
+          // 只保留密码访问和无密码两种模式
+          final modeKeys = <String>['password', ''];
           final modeValues = [
             translate('Accept sessions via password'),
-            translate('Accept sessions via click'),
-            translate('Accept sessions via both'),
+            translate('Accept sessions without password'),
           ];
           var modeInitialKey = model.approveMode;
-          if (!modeKeys.contains(modeInitialKey)) {
-            modeInitialKey = defaultOptionApproveMode;
+          // 如果是 click 或 password-click，重置为 password
+          if (modeInitialKey != 'password' && modeInitialKey != '') {
+            modeInitialKey = 'password';
+            Future.delayed(Duration.zero, () {
+              model.setApproveMode('password');
+            });
           }
-          final usePassword = model.approveMode != 'click';
+          final usePassword = model.approveMode == 'password';
 
           final isApproveModeFixed = isOptionFixed(kOptionApproveMode);
           return _Card(title: 'Password', children: [
@@ -1208,7 +1208,7 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
               initialKey: modeInitialKey,
               onChanged: (key) => model.setApproveMode(key),
             ).marginOnly(left: _kContentHMargin),
-            // 移除一次性密码相关选项，只保留永久密码
+            // 只在密码模式下显示永久密码设置
             if (usePassword) radios[1],
             if (usePassword && !isChangePermanentPasswordDisabled())
               _SubButton('Set permanent password', setPasswordDialog,

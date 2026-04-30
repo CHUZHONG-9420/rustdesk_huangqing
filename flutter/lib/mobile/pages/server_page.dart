@@ -52,14 +52,11 @@ class _DropDownAction extends StatelessWidget {
                 ));
           }
 
+          // 只保留密码访问和无密码两种模式，移除点击访问和两者模式
+          // 只保留永久密码，移除一次性密码相关选项
           final approveMode = gFFI.serverModel.approveMode;
-          final verificationMethod = gFFI.serverModel.verificationMethod;
-          final showPasswordOption = approveMode != 'click';
           final isApproveModeFixed = isOptionFixed(kOptionApproveMode);
-          final isNumericOneTimePasswordFixed =
-              isOptionFixed(kOptionAllowNumericOneTimePassword);
-          final isAllowNumericOneTimePassword =
-              gFFI.serverModel.allowNumericOneTimePassword;
+          
           return [
             if (!isChangeIdDisabled())
               PopupMenuItem(
@@ -70,64 +67,19 @@ class _DropDownAction extends StatelessWidget {
             if (!isChangeIdDisabled()) const PopupMenuDivider(),
             PopupMenuItem(
               value: 'AcceptSessionsViaPassword',
-              child: listTile(
-                  'Accept sessions via password', approveMode == 'password'),
+              child: listTile('Accept sessions via password', approveMode == 'password'),
               enabled: !isApproveModeFixed,
             ),
             PopupMenuItem(
-              value: 'AcceptSessionsViaClick',
-              child:
-                  listTile('Accept sessions via click', approveMode == 'click'),
+              value: 'AcceptSessionsWithoutPassword',
+              child: listTile('Accept sessions without password', approveMode == ''),
               enabled: !isApproveModeFixed,
             ),
-            PopupMenuItem(
-              value: "AcceptSessionsViaBoth",
-              child: listTile("Accept sessions via both",
-                  approveMode != 'password' && approveMode != 'click'),
-              enabled: !isApproveModeFixed,
-            ),
-            if (showPasswordOption) const PopupMenuDivider(),
-            if (showPasswordOption &&
-                verificationMethod != kUseTemporaryPassword &&
-                !isChangePermanentPasswordDisabled())
+            if (approveMode == 'password') const PopupMenuDivider(),
+            if (approveMode == 'password' && !isChangePermanentPasswordDisabled())
               PopupMenuItem(
                 value: "setPermanentPassword",
                 child: Text(translate("Set permanent password")),
-              ),
-            if (showPasswordOption &&
-                verificationMethod != kUsePermanentPassword)
-              PopupMenuItem(
-                value: "setTemporaryPasswordLength",
-                child: Text(translate("One-time password length")),
-              ),
-            if (showPasswordOption &&
-                verificationMethod != kUsePermanentPassword)
-              PopupMenuItem(
-                value: "allowNumericOneTimePassword",
-                child: listTile(translate("Numeric one-time password"),
-                    isAllowNumericOneTimePassword),
-                enabled: !isNumericOneTimePasswordFixed,
-              ),
-            if (showPasswordOption) const PopupMenuDivider(),
-            if (showPasswordOption)
-              PopupMenuItem(
-                value: kUseTemporaryPassword,
-                child: listTile('Use one-time password',
-                    verificationMethod == kUseTemporaryPassword),
-              ),
-            if (showPasswordOption)
-              PopupMenuItem(
-                value: kUsePermanentPassword,
-                child: listTile('Use permanent password',
-                    verificationMethod == kUsePermanentPassword),
-              ),
-            if (showPasswordOption)
-              PopupMenuItem(
-                value: kUseBothPasswords,
-                child: listTile(
-                    'Use both passwords',
-                    verificationMethod != kUseTemporaryPassword &&
-                        verificationMethod != kUsePermanentPassword),
               ),
           ];
         },
@@ -136,39 +88,10 @@ class _DropDownAction extends StatelessWidget {
             changeIdDialog();
           } else if (value == "setPermanentPassword") {
             setPasswordDialog();
-          } else if (value == "setTemporaryPasswordLength") {
-            setTemporaryPasswordLengthDialog(gFFI.dialogManager);
-          } else if (value == "allowNumericOneTimePassword") {
-            gFFI.serverModel.switchAllowNumericOneTimePassword();
-            gFFI.serverModel.updatePasswordModel();
-          } else if (value == kUsePermanentPassword ||
-              value == kUseTemporaryPassword ||
-              value == kUseBothPasswords) {
-            callback() {
-              bind.mainSetOption(key: kOptionVerificationMethod, value: value);
-              gFFI.serverModel.updatePasswordModel();
-            }
-
-            if (value == kUsePermanentPassword &&
-                (await bind.mainGetCommon(key: "permanent-password-set")) !=
-                    "true") {
-              if (isChangePermanentPasswordDisabled()) {
-                callback();
-                return;
-              }
-              setPasswordDialog(notEmptyCallback: callback);
-            } else {
-              callback();
-            }
-          } else if (value.startsWith("AcceptSessionsVia")) {
-            value = value.substring("AcceptSessionsVia".length);
-            if (value == "Password") {
-              gFFI.serverModel.setApproveMode('password');
-            } else if (value == "Click") {
-              gFFI.serverModel.setApproveMode('click');
-            } else {
-              gFFI.serverModel.setApproveMode(defaultOptionApproveMode);
-            }
+          } else if (value == "AcceptSessionsViaPassword") {
+            gFFI.serverModel.setApproveMode('password');
+          } else if (value == "AcceptSessionsWithoutPassword") {
+            gFFI.serverModel.setApproveMode('');
           }
         })
   ];
@@ -507,8 +430,7 @@ class ServerInfo extends StatelessWidget {
       }
     }
 
-    final showOneTime = serverModel.approveMode != 'click' &&
-        serverModel.verificationMethod != kUsePermanentPassword;
+    final usePassword = serverModel.approveMode == 'password';
     return PaddingCard(
         title: translate('Your Device'),
         child: Column(
@@ -540,30 +462,17 @@ class ServerInfo extends StatelessWidget {
               const Icon(Icons.lock_outline, color: Colors.grey, size: iconSize)
                   .marginOnly(right: iconMarginRight),
               Text(
-                translate('One-time Password'),
+                usePassword 
+                    ? translate('Permanent Password')
+                    : translate('No Password'),
                 style: textStyleHeading,
               )
             ]),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Text(
-                !showOneTime ? '-' : model.serverPasswd.value.text,
+                usePassword ? '••••••••' : '-',
                 style: textStyleValue,
               ),
-              !showOneTime
-                  ? SizedBox.shrink()
-                  : Row(children: [
-                      IconButton(
-                          visualDensity: VisualDensity.compact,
-                          icon: const Icon(Icons.refresh),
-                          onPressed: () => bind.mainUpdateTemporaryPassword()),
-                      IconButton(
-                          visualDensity: VisualDensity.compact,
-                          icon: Icon(Icons.copy_outlined),
-                          onPressed: () {
-                            copyToClipboard(
-                                model.serverPasswd.value.text.trim());
-                          })
-                    ])
             ]).marginOnly(left: 40, bottom: 15),
             ConnectionStateNotification()
           ],
@@ -749,7 +658,7 @@ class ConnectionManager extends StatelessWidget {
           onPressed: () {
             serverModel.sendLoginResponse(client, false);
           }).marginOnly(right: 15),
-      if (serverModel.approveMode != 'password')
+      if (serverModel.approveMode != 'password' && serverModel.approveMode != '')
         ElevatedButton.icon(
             icon: const Icon(Icons.check),
             label: Text(translate("Accept")),
@@ -772,7 +681,7 @@ class ConnectionManager extends StatelessWidget {
             onPressed: () {
               serverModel.handleVoiceCall(client, false);
             }).marginOnly(right: 15),
-        if (serverModel.approveMode != 'password')
+        if (serverModel.approveMode != 'password' && serverModel.approveMode != '')
           ElevatedButton.icon(
               icon: const Icon(Icons.check),
               label: Text(translate("Accept")),
