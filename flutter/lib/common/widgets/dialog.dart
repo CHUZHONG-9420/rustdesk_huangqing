@@ -77,9 +77,9 @@ void changeIdDialog() {
   final RxString rxId = controller.text.trim().obs;
 
   final rules = [
-    RegexValidationRule('starts with a letter', RegExp(r'^[a-zA-Z]')),
+    RegexValidationRule('starts with a letter', RegExp(r'^[A-Z0-9]')),
     LengthRangeValidationRule(6, 16),
-    RegexValidationRule('allowed characters', RegExp(r'^[\w-]*$'))
+    RegexValidationRule('allowed characters', RegExp(r'^[A-Z0-9_-]+$'))
   ];
 
   gFFI.dialogManager.show((setState, close, context) {
@@ -138,7 +138,15 @@ void changeIdDialog() {
                 suffixStyle: const TextStyle(fontSize: 12, color: Colors.grey)),
             inputFormatters: [
               LengthLimitingTextInputFormatter(16),
-              // FilteringTextInputFormatter(RegExp(r"[a-zA-z][a-zA-z0-9\_]*"), allow: true)
+              TextInputFormatter.withFunction((oldValue, newValue) {
+                final upper = newValue.text.toUpperCase();
+                final filtered = upper.replaceAll(RegExp(r'[^A-Z0-9_-]'), '');
+                if (filtered == newValue.text) return newValue;
+                return newValue.copyWith(
+                  text: filtered,
+                  selection: TextSelection.collapsed(offset: filtered.length),
+                );
+              }),
             ],
             controller: controller,
             autofocus: true,

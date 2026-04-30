@@ -2485,6 +2485,12 @@ class _AboutState extends State<_About> {
                 ),
                 _buildLinkButton(
                   icon: Icons.code_rounded,
+                  label: '本软件源代码',
+                  url: 'https://github.com/CHUZHONG-9420/rustdesk_huangqing',
+                  context: context,
+                ),
+                _buildLinkButton(
+                  icon: Icons.source_rounded,
                   label: 'RustDesk 源代码',
                   url: 'https://github.com/rustdesk/rustdesk',
                   context: context,
