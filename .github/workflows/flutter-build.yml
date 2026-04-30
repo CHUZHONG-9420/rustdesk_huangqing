@@ -73,18 +73,15 @@ jobs:
       fail-fast: false
       matrix:
         job:
+          # - { target: i686-pc-windows-msvc        , os: windows-2022                  }
+          # - { target: x86_64-pc-windows-gnu       , os: windows-2022                  }
           - {
               target: x86_64-pc-windows-msvc,
               os: windows-2022,
               arch: x86_64,
               vcpkg-triplet: x64-windows-static,
             }
-          - {
-              target: aarch64-pc-windows-msvc,
-              os: windows-2022,
-              arch: aarch64,
-              vcpkg-triplet: arm64-windows-static,
-            }
+          # - { target: aarch64-pc-windows-msvc, os: windows-2022, arch: aarch64 }
     steps:
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@v6
@@ -115,20 +112,14 @@ jobs:
           channel: "stable"
           flutter-version: ${{ env.FLUTTER_VERSION }}
 
+      # https://github.com/flutter/flutter/issues/155685
       - name: Replace engine with rustdesk custom flutter engine
-        if: matrix.job.arch == 'x86_64'
         run: |
           flutter doctor -v
           flutter precache --windows
           Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
           Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
-          mv -Force windows-x64-release/*  C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
-
-      - name: Flutter precache for ARM64
-        if: matrix.job.arch == 'aarch64'
-        run: |
-          flutter doctor -v
-          flutter precache --windows
+          mv -Force windows-x64-release/*  C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
 
       - name: Patch flutter
         shell: bash
@@ -179,12 +170,7 @@ jobs:
         run: |
           # Windows: build RustDesk
           python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
-          # 根据架构选择 Flutter 输出路径
-          if ("${{ matrix.job.arch }}" -eq "aarch64") {
-            mv ./flutter/build/windows/arm64/runner/Release ./rustdesk
-          } else {
-            mv ./flutter/build/windows/x64/runner/Release ./rustdesk
-          }
+          mv ./flutter/build/windows/x64/runner/Release ./rustdesk
 
           # Download usbmmidd_v2.zip and extract it to ./rustdesk
           Invoke-WebRequest -Uri https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
@@ -238,8 +224,7 @@ jobs:
 
       - name: Download RustDeskTempTopMostWindow artifacts
         uses: actions/download-artifact@master
-        # ARM64 暂不包含 TopMostWindow（仅 x64 编译）
-        if: ${{ inputs.upload-artifact && matrix.job.arch == 'x86_64' }}
+        if: ${{ inputs.upload-artifact }}
         with:
           name: topmostwindow-artifacts
           path: "./rustdesk"
@@ -274,8 +259,7 @@ jobs:
         uses: microsoft/setup-msbuild@v2
 
       - name: Build msi
-        # ARM64 暂不打包 MSI，仅提供便携 EXE
-        if: env.UPLOAD_ARTIFACT == 'true' && matrix.job.arch == 'x86_64'
+        if: env.UPLOAD_ARTIFACT == 'true'
         run: |
           pushd ./res/msi
           python preprocess.py --arp -d ../../rustdesk
@@ -452,7 +436,7 @@ jobs:
             ./SignOutput/rustdesk-*.exe
 
   build-rustdesk-ios:
-    if: false  # 已禁用：仅保留 Windows 和 Android 构建
+    if: ${{ inputs.upload-artifact }}
     name: build rustdesk ios ipa
     runs-on: ${{ matrix.job.os }}
     needs: [generate-bridge]
@@ -572,7 +556,6 @@ jobs:
 
 
   build-for-macOS:
-    if: false  # 已禁用：仅保留 Windows 和 Android 构建
     name: ${{ matrix.job.target }}
     runs-on: ${{ matrix.job.os }}
     needs: [generate-bridge]
@@ -862,13 +845,6 @@ jobs:
               reltype: release,
               suffix: "",
             }
-          - {
-              arch: x86,
-              target: i686-linux-android,
-              os: ubuntu-24.04,
-              reltype: release,
-              suffix: "",
-            }
     steps:
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@main
@@ -1139,7 +1115,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       reltype: release
-      x86_target: ",android-x86" # 启用 x86 架构
+      x86_target: "" # can be ",android-x86"
       suffix: ""
     steps:
       - name: Free Disk Space (Ubuntu)
@@ -1236,7 +1212,7 @@ jobs:
           path: ./flutter/android/app/src/main/jniLibs/x86_64
 
       - name: Download Rustdesk library from Artifacts
-        # 启用 x86 架构（release 和 debug 都下载）
+        if: ${{ env.reltype == 'debug' }}
         uses: actions/download-artifact@master
         with:
           name: librustdesk.so.i686-linux-android
@@ -1258,9 +1234,10 @@ jobs:
           cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/libc++_shared.so ./flutter/android/app/src/main/jniLibs/armeabi-v7a/
           mv ./flutter/android/app/src/main/jniLibs/x86_64/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/x86_64/librustdesk.so
           cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android/libc++_shared.so ./flutter/android/app/src/main/jniLibs/x86_64/
-          # 始终包含 x86 架构（之前只在 debug 模式包含）
-          mv ./flutter/android/app/src/main/jniLibs/x86/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/x86/librustdesk.so
-          cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android/libc++_shared.so ./flutter/android/app/src/main/jniLibs/x86/
+          if [ "${{ env.reltype }}" = "debug" ]; then
+            mv ./flutter/android/app/src/main/jniLibs/x86/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/x86/librustdesk.so
+            cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android/libc++_shared.so ./flutter/android/app/src/main/jniLibs/x86/
+          fi
           # build flutter
           pushd flutter
           flutter build apk "--${{ env.reltype }}" --target-platform android-arm64,android-arm,android-x64${{ env.x86_target }}
@@ -1316,7 +1293,6 @@ jobs:
             signed-apk/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk
 
   build-rustdesk-linux:
-    if: false  # 已禁用：仅保留 Windows 和 Android 构建
     needs: [generate-bridge]
     name: build rustdesk linux ${{ matrix.job.target }}
     runs-on: ${{ matrix.job.on }}
@@ -1654,7 +1630,7 @@ jobs:
             res/rustdesk-${{ env.VERSION }}*.zst
 
   build-rustdesk-linux-sciter:
-    if: false  # 已禁用：仅保留 Windows 和 Android 构建
+    if: ${{ inputs.upload-artifact }}
     runs-on: ${{ matrix.job.on }}
     name: build-rustdesk-linux-sciter ${{ matrix.job.target }}
     strategy:
@@ -1881,10 +1857,10 @@ jobs:
           path: rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-sciter.deb
 
   build-appimage:
-    if: false  # 已禁用：仅保留 Windows 和 Android 构建
     name: Build appimage ${{ matrix.job.target }}
     needs: [build-rustdesk-linux]
     runs-on: ubuntu-22.04
+    if: ${{ inputs.upload-artifact }}
     strategy:
       fail-fast: false
       matrix:
@@ -1936,7 +1912,7 @@ jobs:
       - build-rustdesk-linux
       - build-rustdesk-linux-sciter
     runs-on: ${{ matrix.job.on }}
-    if: false  # 已禁用：仅保留 Windows 和 Android 构建
+    if: ${{ inputs.upload-artifact }}
     strategy:
       fail-fast: false
       matrix:
