@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/common/widgets/audio_input.dart';
 import 'package:flutter_hbb/common/widgets/setting_widgets.dart';
@@ -2274,93 +2275,122 @@ class _About extends StatefulWidget {
 }
 
 class _AboutState extends State<_About> {
+  String _hitokoto = '';
+  String _hitokotoFrom = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchHitokoto();
+  }
+
+  Future<void> _fetchHitokoto() async {
+    try {
+      final resp = await http
+          .get(Uri.parse('https://hitokoto.hnczy.top/api.php'))
+          .timeout(const Duration(seconds: 5));
+      if (resp.statusCode == 200) {
+        final body = resp.body.trim();
+        // 先尝试解析 JSON，失败则当作纯文本
+        try {
+          final data = jsonDecode(body);
+          if (data is Map) {
+            final text = (data['hitokoto'] ?? data['content'] ?? '').toString();
+            final from = (data['from'] ?? data['source'] ?? '').toString();
+            if (text.isNotEmpty && mounted) {
+              setState(() {
+                _hitokoto = text;
+                _hitokotoFrom = from;
+              });
+              return;
+            }
+          }
+        } catch (_) {}
+        if (mounted) {
+          setState(() {
+            _hitokoto = body;
+            _hitokotoFrom = '';
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _hitokoto = '获取一言失败';
+          _hitokotoFrom = '';
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return futureBuilder(future: () async {
-      final license = await bind.mainGetLicense();
-      final version = await bind.mainGetVersion();
-      final buildDate = await bind.mainGetBuildDate();
-      final fingerprint = await bind.mainGetFingerprint();
-      return {
-        'license': license,
-        'version': version,
-        'buildDate': buildDate,
-        'fingerprint': fingerprint
-      };
-    }(), hasData: (data) {
-      final license = data['license'].toString();
-      final version = data['version'].toString();
-      final buildDate = data['buildDate'].toString();
-      final fingerprint = data['fingerprint'].toString();
-      const linkStyle = TextStyle(decoration: TextDecoration.underline);
-      final scrollController = ScrollController();
-      return SingleChildScrollView(
-        controller: scrollController,
-        child: _Card(title: translate('About RustDesk'), children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(
-                height: 8.0,
+    const linkStyle = TextStyle(decoration: TextDecoration.underline);
+    final scrollController = ScrollController();
+    return SingleChildScrollView(
+      controller: scrollController,
+      child: _Card(title: translate('About RustDesk'), children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 8.0),
+            SelectionArea(
+                child: const Text(
+              '由 CHUZHONG 二次开发',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ).marginSymmetric(vertical: 4.0)),
+            const SizedBox(height: 8.0),
+            // 一言
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).hoverColor,
+                borderRadius: BorderRadius.circular(6),
               ),
-              SelectionArea(
-                  child: Text('XXX构建')
-                      .marginSymmetric(vertical: 4.0)),
-              SelectionArea(
-                  child: Text('${translate('Build Date')}: 20260429')
-                      .marginSymmetric(vertical: 4.0)),
-              if (!isWeb)
-                SelectionArea(
-                    child: Text('${translate('Fingerprint')}: $fingerprint')
-                        .marginSymmetric(vertical: 4.0)),
-              InkWell(
-                  onTap: () {
-                    launchUrlString('https://rustdesk.com/privacy.html');
-                  },
-                  child: Text(
-                    translate('Privacy Statement'),
-                    style: linkStyle,
-                  ).marginSymmetric(vertical: 4.0)),
-              InkWell(
-                  onTap: () {
-                    launchUrlString('https://rustdesk.com');
-                  },
-                  child: Text(
-                    translate('Website'),
-                    style: linkStyle,
-                  ).marginSymmetric(vertical: 4.0)),
-              Container(
-                decoration: const BoxDecoration(color: Color(0xFF2c8cff)),
-                padding:
-                    const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
-                child: SelectionArea(
-                    child: Row(
+              child: SelectionArea(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Copyright © ${DateTime.now().toString().substring(0, 4)} Purslane Ltd.\n$license',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                          Text(
-                            translate('Slogan_tip'),
-                            style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white),
-                          )
-                        ],
-                      ),
+                    Text(
+                      _hitokoto.isEmpty ? '加载中…' : '「$_hitokoto」',
+                      style: const TextStyle(
+                          fontStyle: FontStyle.italic, fontSize: 14),
                     ),
+                    if (_hitokotoFrom.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '—— $_hitokotoFrom',
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.grey),
+                        ),
+                      ),
                   ],
-                )),
-              ).marginSymmetric(vertical: 4.0)
-            ],
-          ).marginOnly(left: _kContentHMargin)
-        ]),
-      );
-    });
+                ),
+              ),
+            ).marginSymmetric(vertical: 6.0),
+            // RustDesk 开源协议
+            InkWell(
+                onTap: () {
+                  launchUrlString(
+                      'https://github.com/rustdesk/rustdesk/blob/master/LICENCE');
+                },
+                child: const Text(
+                  'RustDesk 开源协议（AGPL-3.0）：https://github.com/rustdesk/rustdesk/blob/master/LICENCE',
+                  style: linkStyle,
+                ).marginSymmetric(vertical: 4.0)),
+            InkWell(
+                onTap: () {
+                  launchUrlString('https://github.com/rustdesk/rustdesk');
+                },
+                child: const Text(
+                  'RustDesk 源代码仓库：https://github.com/rustdesk/rustdesk',
+                  style: linkStyle,
+                ).marginSymmetric(vertical: 4.0)),
+          ],
+        ).marginOnly(left: _kContentHMargin)
+      ]),
+    );
   }
 }
 
