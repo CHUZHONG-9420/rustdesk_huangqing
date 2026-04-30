@@ -3092,40 +3092,39 @@ pub mod server_side {
 
 // 远程配置相关FFI接口
 pub fn fetch_remote_config_async(url: String) -> SyncReturn<String> {
-    use hbb_common::tokio;
-    
-    tokio::spawn(async move {
-        match do_fetch_remote_config(&url).await {
-            Ok(config) => {
-                let status = serde_json::json!({
-                    "success": true,
-                    "api_server": config.api_server,
-                    "key": config.key,
-                    "ports": {
-                        "rendezvous": config.rendezvous_port,
-                        "relay": config.relay_port,
-                        "ws_rendezvous": config.ws_rendezvous_port,
-                        "ws_relay": config.ws_relay_port,
-                    }
-                });
-                log::info!("Remote config fetched: {:?}", status);
-                flutter::emit_event(&flutter::make_event("remote_config_fetched", &[("status", &status.to_string())]));
-            }
+    std::thread::spawn(move || {
+        let rt = match hbb_common::tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+        {
+            Ok(rt) => rt,
             Err(e) => {
-                let error = serde_json::json!({
-                    "success": false,
-                    "error": e.to_string()
-                });
-                log::error!("Failed to fetch remote config: {}", e);
-                flutter::emit_event(&flutter::make_event("remote_config_fetched", &[("status", &error.to_string())]));
+                log::error!("Failed to build tokio runtime: {}", e);
+                return;
             }
-        }
+        };
+        rt.block_on(async move {
+            match do_fetch_remote_config(&url).await {
+                Ok(config) => {
+                    log::info!(
+                        "Remote config fetched: api_server={}, key={}",
+                        config.api_server,
+                        config.key
+                    );
+                }
+                Err(e) => {
+                    log::error!("Failed to fetch remote config: {}", e);
+                }
+            }
+        });
     });
-    
+
     SyncReturn("".to_string())
 }
 
-async fn do_fetch_remote_config(url: &str) -> hbb_common::ResultType<hbb_common::config::RemoteConfig> {
+async fn do_fetch_remote_config(
+    url: &str,
+) -> hbb_common::ResultType<hbb_common::config::RemoteConfig> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()?;
