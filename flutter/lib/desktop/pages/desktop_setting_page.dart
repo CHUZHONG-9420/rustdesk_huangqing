@@ -2277,11 +2277,18 @@ class _About extends StatefulWidget {
 class _AboutState extends State<_About> {
   String _hitokoto = '';
   String _hitokotoFrom = '';
+  String _version = '';
 
   @override
   void initState() {
     super.initState();
     _fetchHitokoto();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final v = await bind.mainGetVersion();
+    if (mounted) setState(() => _version = v);
   }
 
   Future<void> _fetchHitokoto() async {
@@ -2291,7 +2298,6 @@ class _AboutState extends State<_About> {
           .timeout(const Duration(seconds: 5));
       if (resp.statusCode == 200) {
         final body = resp.body.trim();
-        // 先尝试解析 JSON，失败则当作纯文本
         try {
           final data = jsonDecode(body);
           if (data is Map) {
@@ -2323,72 +2329,171 @@ class _AboutState extends State<_About> {
     }
   }
 
+  Widget _buildLinkButton({
+    required IconData icon,
+    required String label,
+    required String url,
+    required BuildContext context,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: () => launchUrlString(url),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          border: Border.all(color: colorScheme.outline.withOpacity(0.3)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: MyTheme.accent),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: MyTheme.accent,
+                decoration: TextDecoration.underline,
+                decorationColor: MyTheme.accent,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    const linkStyle = TextStyle(decoration: TextDecoration.underline);
     final scrollController = ScrollController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark
+        ? Colors.white.withOpacity(0.05)
+        : Colors.grey.withOpacity(0.07);
+
     return SingleChildScrollView(
       controller: scrollController,
-      child: _Card(title: translate('About RustDesk'), children: [
+      child: _Card(title: '关于', children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 8.0),
-            SelectionArea(
-                child: const Text(
+            const SizedBox(height: 4),
+            // App 标题区域
+            Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: MyTheme.accent.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(Icons.desktop_windows_rounded,
+                      size: 30, color: MyTheme.accent),
+                ),
+                const SizedBox(width: 14),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      bind.mainGetAppNameSync(),
+                      style: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    if (_version.isNotEmpty)
+                      Text(
+                        'v$_version',
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade500),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
               '由 CHUZHONG 二次开发',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ).marginSymmetric(vertical: 4.0)),
-            const SizedBox(height: 8.0),
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+            ),
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 14),
             // 一言
             Container(
-              padding: const EdgeInsets.all(12),
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Theme.of(context).hoverColor,
-                borderRadius: BorderRadius.circular(6),
+                color: cardColor,
+                borderRadius: BorderRadius.circular(10),
               ),
               child: SelectionArea(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      _hitokoto.isEmpty ? '加载中…' : '「$_hitokoto」',
-                      style: const TextStyle(
-                          fontStyle: FontStyle.italic, fontSize: 14),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.format_quote_rounded,
+                            size: 18,
+                            color: MyTheme.accent.withOpacity(0.7)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            _hitokoto.isEmpty ? '加载中…' : _hitokoto,
+                            style: const TextStyle(
+                                fontStyle: FontStyle.italic, fontSize: 13.5),
+                          ),
+                        ),
+                      ],
                     ),
                     if (_hitokotoFrom.isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(top: 4),
+                        padding: const EdgeInsets.only(top: 6, left: 24),
                         child: Text(
                           '—— $_hitokotoFrom',
-                          style: const TextStyle(
-                              fontSize: 12, color: Colors.grey),
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey.shade500),
                         ),
                       ),
                   ],
                 ),
               ),
-            ).marginSymmetric(vertical: 6.0),
-            // RustDesk 开源协议
-            InkWell(
-                onTap: () {
-                  launchUrlString(
-                      'https://github.com/rustdesk/rustdesk/blob/master/LICENCE');
-                },
-                child: const Text(
-                  'RustDesk 开源协议（AGPL-3.0）：https://github.com/rustdesk/rustdesk/blob/master/LICENCE',
-                  style: linkStyle,
-                ).marginSymmetric(vertical: 4.0)),
-            InkWell(
-                onTap: () {
-                  launchUrlString('https://github.com/rustdesk/rustdesk');
-                },
-                child: const Text(
-                  'RustDesk 源代码仓库：https://github.com/rustdesk/rustdesk',
-                  style: linkStyle,
-                ).marginSymmetric(vertical: 4.0)),
+            ),
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 14),
+            // 链接区域
+            Text(
+              '相关链接',
+              style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                  fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildLinkButton(
+                  icon: Icons.gavel_rounded,
+                  label: '开源协议 AGPL-3.0',
+                  url: 'https://github.com/rustdesk/rustdesk/blob/master/LICENCE',
+                  context: context,
+                ),
+                _buildLinkButton(
+                  icon: Icons.code_rounded,
+                  label: 'RustDesk 源代码',
+                  url: 'https://github.com/rustdesk/rustdesk',
+                  context: context,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
           ],
-        ).marginOnly(left: _kContentHMargin)
+        ).marginOnly(left: _kContentHMargin, right: _kContentHMargin)
       ]),
     );
   }
