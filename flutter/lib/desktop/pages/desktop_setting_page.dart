@@ -1652,12 +1652,11 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
                 icon: Icons.ios_share_outlined,
                 title: 'Export Server Config',
                 onTap: () async {
-                  final options = await bind.mainGetOptions();
                   final sc = ServerConfig(
-                    idServer: options['custom-rendezvous-server'] ?? '',
-                    relayServer: options['relay-server'] ?? '',
-                    apiServer: options['api-server'] ?? '',
-                    key: options['key'] ?? '',
+                    idServer: await bind.mainGetOption(key: 'custom-rendezvous-server'),
+                    relayServer: await bind.mainGetOption(key: 'relay-server'),
+                    apiServer: await bind.mainGetOption(key: 'api-server'),
+                    key: await bind.mainGetOption(key: 'key'),
                   );
                   final text = sc.encode();
                   Clipboard.setData(ClipboardData(text: text));
