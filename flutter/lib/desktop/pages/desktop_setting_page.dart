@@ -1648,6 +1648,22 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
                 title: 'Fetch Remote Config',
                 onTap: () => showFetchRemoteConfigDialog(context, setState),
               ),
+              listTile(
+                icon: Icons.ios_share_outlined,
+                title: 'Export Server Config',
+                onTap: () async {
+                  final options = await bind.mainGetOptions();
+                  final sc = ServerConfig(
+                    idServer: options['custom-rendezvous-server'] ?? '',
+                    relayServer: options['relay-server'] ?? '',
+                    apiServer: options['api-server'] ?? '',
+                    key: options['key'] ?? '',
+                  );
+                  final text = sc.encode();
+                  Clipboard.setData(ClipboardData(text: text));
+                  showToast(translate('Export server configuration successfully'));
+                },
+              ),
             ],
           ),
         ),
@@ -2340,7 +2356,7 @@ class _AboutState extends State<_About> {
       onTap: () => launchUrlString(url),
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
           border: Border.all(color: colorScheme.outline.withOpacity(0.3)),
           borderRadius: BorderRadius.circular(8),
@@ -2348,12 +2364,12 @@ class _AboutState extends State<_About> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: MyTheme.accent),
-            const SizedBox(width: 6),
+            Icon(icon, size: 13, color: MyTheme.accent),
+            const SizedBox(width: 4),
             Text(
               label,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 11,
                 color: MyTheme.accent,
                 decoration: TextDecoration.underline,
                 decorationColor: MyTheme.accent,
