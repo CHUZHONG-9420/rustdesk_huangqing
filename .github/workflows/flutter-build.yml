@@ -9,6 +9,9 @@ on:
       upload-tag:
         type: string
         default: "nightly"
+      windows-android-only:
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -436,7 +439,7 @@ jobs:
             ./SignOutput/rustdesk-*.exe
 
   build-rustdesk-ios:
-    if: ${{ inputs.upload-artifact }}
+    if: ${{ inputs.upload-artifact && !inputs.windows-android-only }}
     name: build rustdesk ios ipa
     runs-on: ${{ matrix.job.os }}
     needs: [generate-bridge]
@@ -556,6 +559,7 @@ jobs:
 
 
   build-for-macOS:
+    if: ${{ !inputs.windows-android-only }}
     name: ${{ matrix.job.target }}
     runs-on: ${{ matrix.job.os }}
     needs: [generate-bridge]
@@ -779,7 +783,7 @@ jobs:
       - build-for-windows-flutter
       - build-for-windows-sciter
     runs-on: ubuntu-latest
-    if: ${{ inputs.upload-artifact }}
+    if: ${{ inputs.upload-artifact && !inputs.windows-android-only }}
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@master
@@ -1293,6 +1297,7 @@ jobs:
             signed-apk/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk
 
   build-rustdesk-linux:
+    if: ${{ !inputs.windows-android-only }}
     needs: [generate-bridge]
     name: build rustdesk linux ${{ matrix.job.target }}
     runs-on: ${{ matrix.job.on }}
@@ -1630,7 +1635,7 @@ jobs:
             res/rustdesk-${{ env.VERSION }}*.zst
 
   build-rustdesk-linux-sciter:
-    if: ${{ inputs.upload-artifact }}
+    if: ${{ inputs.upload-artifact && !inputs.windows-android-only }}
     runs-on: ${{ matrix.job.on }}
     name: build-rustdesk-linux-sciter ${{ matrix.job.target }}
     strategy:
@@ -1860,7 +1865,7 @@ jobs:
     name: Build appimage ${{ matrix.job.target }}
     needs: [build-rustdesk-linux]
     runs-on: ubuntu-22.04
-    if: ${{ inputs.upload-artifact }}
+    if: ${{ inputs.upload-artifact && !inputs.windows-android-only }}
     strategy:
       fail-fast: false
       matrix:
@@ -1912,7 +1917,7 @@ jobs:
       - build-rustdesk-linux
       - build-rustdesk-linux-sciter
     runs-on: ${{ matrix.job.on }}
-    if: ${{ inputs.upload-artifact }}
+    if: ${{ inputs.upload-artifact && !inputs.windows-android-only }}
     strategy:
       fail-fast: false
       matrix:
